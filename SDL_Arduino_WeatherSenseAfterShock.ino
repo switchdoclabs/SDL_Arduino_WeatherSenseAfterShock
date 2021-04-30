@@ -9,7 +9,7 @@
 #include <JeeLib.h>
 
 #include "MemoryFree.h"
-
+#include <EEPROM.h>
 
 // WeatherSenseProtocol of 8 is SolarMAX LiPo   BatV < 7V
 // WeatherSenseProtocol of 10 is SolarMAX LeadAcid   BatV > 7V LoRa version
@@ -23,7 +23,7 @@
 
 #define LED 13
 // Software version
-#define SOFTWAREVERSION 1
+#define SOFTWAREVERSION 2
 
 // unique ID of this WeatherSenseAfterShock system - change if you have multiple WeatherSenseThunderBoard systems
 #define WEATHERSENESTHBID 1
@@ -35,10 +35,11 @@
 
 // Device ID is changed if you have more than one WeatherSense ThunderBoard in the area
 
-// Number of milliseconds between wake up  30 seconds.  Every 30 wakeups send packet  - if you move this over 60000 ms, you will need to add the watchdog in the sleep loop - see SDL_Arduino_WeatherSenseAQI ResetWatchDog
+// Number of milliseconds between wake up  30 seconds.   - if you move this over 60000 ms, you will need to add the watchdog in the sleep loop - see SDL_Arduino_WeatherSenseAQI ResetWatchDog
+// Every 100 wakeups send packet (~60 minutes) keepalivemessage
 #define SLEEPCYCLE 30000
-#define WAKEUPS 30
-//#define SLEEPCYCLE 14000
+#define WAKEUPS 100
+
 
 #include "Crc16.h"
 
@@ -72,6 +73,8 @@ SDL_Arduino_INA3221 INA3221;
 #define TXPIN 8
 #define RXPIN 9
 
+#define INT1_PIN 2 //Arduino pin connected to the INT1 pin of the D7S sensor
+#define INT2_PIN 3 //Arduino pin connected to the INT2 pin of the D7S sensor
 
 
 // Number of milliseconds between data ou
@@ -131,13 +134,14 @@ byte SoftwareVersion;
 
 // AuxA has state information
 // coded in the byte
-// 0000DCBA
+// 000EDCBA
 
 
 // A = 1, AftereShock Present, 0 not present
 // B = 1, IN3221 (Solar) Present, 0 not present
 // C = 1, Low battery, Lighting Chip shut off (too many false alarms in low voltage mode)
 // D = 1, I'm alive message
+// E = 1, EQ evaluation started
 
 
 
@@ -338,9 +342,9 @@ void ResetWatchdog()
   delay(200);
   digitalWrite(WATCHDOG_1, HIGH);
 
-#if defined(TXDEBUG)
-  Serial.println(F("Watchdog1 Reset - Patted the Dog"));
-#endif
+
+  //Serial.println(F("Watchdog1 Reset - Patted the Dog"));
+
 
 }
 
@@ -355,8 +359,7 @@ void ResetWatchdog()
 //
 #include "D7S.h"
 
-#define INT1_PIN 2 //Arduino pin connected to the INT1 pin of the D7S sensor
-#define INT2_PIN 3 //Arduino pin connected to the INT2 pin of the D7S sensor
+
 
 
 
@@ -386,16 +389,34 @@ void EarthquakeHandler() {
 
 
   }
-  Serial.print(F("IN2_PIN="));
-  Serial.println(digitalRead(INT2_PIN));
-  Serial.print(F("After Prev/Current="));
-  Serial.print(PreviousEQInProgress);
-  Serial.print(F(" / "));
+  /*Serial.print(F("IN2_PIN="));
+    Serial.println(digitalRead(INT2_PIN));
+    Serial.print(F("After Prev/Current="));
+    Serial.print(PreviousEQInProgress);
+    Serial.print(F(" / "));
 
-  Serial.println(EQInProgress);
+    Serial.println(EQInProgress);
+  */
 }
 
+void printD72RegisterStatus()
+{
+  int state;
+  Serial.println(F("########REGISTER STATE##########"));
+  state = D7S.getState();
+  Serial.print(F("state="));
+  Serial.println(state);
+  state = D7S.getMode();
+  Serial.print(F("mode="));
+  Serial.println(state);
+  state = D7S.getAxisState();
+  Serial.print(F("AxisState="));
+  Serial.println(state);
 
+
+
+  Serial.println(F("########REGISTER STATE##########"));
+}
 
 void printLast5()
 {
@@ -587,12 +608,32 @@ void sendMessage(float si, float pga)
   delay(100);
   digitalWrite(LED, LOW);
 
-  MessageCount++;
 
+  MessageCount++;
+  // set to MessageCount
+  EEPROM.put(0, MessageCount);
 
 }
 
+// send EQ start message
+void sendEQStartMessage()
+{
 
+  // send the I'm Alive Message
+
+  AuxA = AuxA | 0x10;  // bit on
+
+  Serial.println(F(">>>>>>>>>>>>>>>Transmitting EQ Startmessage<<<<<<<<<<<<"));
+  float si, pga;
+  si = D7S.getSIDataLast(0);
+  pga = D7S.getPGADataLast(0);
+  printLast5();
+
+  sendMessage(si, pga); // send I'm EQ Start Message
+
+  AuxA = AuxA & 0xEF;  // bit off
+
+}
 
 void setup()
 {
@@ -626,10 +667,25 @@ void setup()
   Serial.print("max message length=");
   Serial.println(driver.maxMessageLength());
 
+  // read the values of messageCount from EEPROM
 
+  unsigned long tempLong;
 
+  tempLong = EEPROM.get(0, tempLong);
+  Serial.println(tempLong, HEX);
 
+  if (tempLong == 0xFFFFF)  // uninitialized
+  {
+    // set to messageID
+    EEPROM.put(0, MessageCount);
+  }
+  else
+  {
+    EEPROM.get(0, MessageCount);
+    // read the message value
+  }
 
+  Serial.println(MessageCount, HEX);
 
 
   pinMode(LED, OUTPUT);
@@ -776,6 +832,8 @@ void setup()
 
 
 
+
+
 void loop()
 {
 
@@ -850,15 +908,19 @@ void loop()
       {
         Serial.println(F("-------------------- EARTHQUAKE STARTED! --------------------\n"));
 
-        state = D7S.getState();
-        Serial.print("state=");
-        Serial.println(state);
+
+        printD72RegisterStatus();
         PreviousEQInProgress = true;
 
         EQCount++;
+        /*
+          highInstantaneousSI = D7S.getInstantaneousSI();
+          highInstantaneousPGA = D7S.getInstantaneousPGA();
 
-
-
+          sendEQStartMessage();
+        */
+        long loop;
+        loop = 0;
         while (D7S.isEarthquakeOccuring())
         {
 
@@ -871,32 +933,36 @@ void loop()
             highInstantaneousSI = currentSI;
           }
           //getting Instantaneous SI
-          Serial.print(F("\tInstantaneous SI: "));
-          Serial.print(currentSI);
-          Serial.println(F(" [m/s]"));
+          //Serial.print(F("\tInstantaneous SI: "));
+          //Serial.print(currentSI);
+          //Serial.println(F(" [m/s]"));
 
           if (currentPGA > highInstantaneousPGA)
           {
             highInstantaneousPGA = currentPGA;
           }
           //getting Instantaneous PGA
-          Serial.print(F("\tInstantaneous PGA (Peak Ground Acceleration): "));
-          Serial.print(currentPGA);
-          Serial.println(" [m/s^2]\n");
+          // //Serial.print(F("\tInstantaneous PGA (Peak Ground Acceleration): "));
+          //Serial.print(currentPGA);
+          //Serial.println(" [m/s^2]\n");
+          if (loop % 100)
+          {
+            Serial.print(F("."));
+          }
+
           // Pat the WatchDog
+
           ResetWatchdog();
 
 
         }
-
+        Serial.println();
 
 
         PreviousEQInProgress = false;
         Serial.println("-------------------- EARTHQUAKE ENDED! --------------------");
-        state = D7S.getState();
-        Serial.print("state=");
-        Serial.println(state);
 
+        printD72RegisterStatus();
         if (state == 2)
         {
           PreviousEQInProgress = EQInProgress;
@@ -979,6 +1045,12 @@ void loop()
 
 
             }
+            else
+            {
+              Serial.println(F("Battery Voltage Low"));
+              Serial.println(F("AuxA = "));
+              Serial.println(AuxA, HEX);
+            }
           }
 
 
@@ -1004,6 +1076,9 @@ void loop()
 
 
       }
+
+      highInstantaneousSI = 0.0;
+      highInstantaneousPGA = 0.0;
     }
 
   }
@@ -1032,6 +1107,8 @@ void loop()
     if (EQInProgress == true)
       i = nextSleepLength / 16;
   }
+
+  printD72RegisterStatus();
 
   wakeState = SLEEP_INTERRUPT;
 

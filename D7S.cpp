@@ -24,6 +24,20 @@ d7s_status D7SClass::getState()
   return (d7s_status)(read8bit(0x10, 0x00) & 0x07);
 }
 
+// return the current axis state
+
+d7s_axis_state D7SClass:: getAxisState()
+{
+  return (d7s_axis_state)(read8bit(0x10, 0x01) & 0x03);
+
+}
+
+int D7SClass::getMode()
+{
+  return read8bit(0x10, 0x03) & 0x07;
+}
+
+
 //change the axis selection mode
 void D7SClass::setAxis(d7s_axis_settings axisMode)
 {
@@ -61,38 +75,38 @@ void D7SClass::setThreshold(d7s_threshold thresholdMode)
 //--- CLEAR MEMORY ---
 // set reset clear memory function
 void D7SClass::zeroClear() {
-   //write clear command
-   write8bit(0x10, 0x05, 0x00);
+  //write clear command
+  write8bit(0x10, 0x05, 0x00);
 }
 
 //delete both the lastest data and the ranked data
 void D7SClass::clearEarthquakeData() {
-   //write clear command
-   write8bit(0x10, 0x05, 0x01);
+  //write clear command
+  write8bit(0x10, 0x05, 0x01);
 }
 
 //delete initializzazion data
 void D7SClass::clearInstallationData() {
-   //write clear command
-   write8bit(0x10, 0x05, 0x08);
+  //write clear command
+  write8bit(0x10, 0x05, 0x08);
 }
 
 //delete offset data
 void D7SClass::clearLastestOffsetData() {
-   //write clear command
-   write8bit(0x10, 0x05, 0x04);
+  //write clear command
+  write8bit(0x10, 0x05, 0x04);
 }
 
 //delete selftest data
 void D7SClass::clearSelftestData() {
-   //write clear command
-   write8bit(0x10, 0x05, 0x02);
+  //write clear command
+  write8bit(0x10, 0x05, 0x02);
 }
 
 //delete all data
 void D7SClass::clearAllData() {
-   //write clear command
-   write8bit(0x10, 0x05, 0x0F);
+  //write clear command
+  write8bit(0x10, 0x05, 0x0F);
 }
 
 
@@ -100,18 +114,18 @@ void D7SClass::clearAllData() {
 float D7SClass::getSIDataLast(int element)
 {
 
-    return ((float)read16bit(0x30+element, 0x08)) / 1000;
+  return ((float)read16bit(0x30 + element, 0x08)) / 1000;
 
 }
 // get PGA Data from the latest 5 earthquakes
 float D7SClass::getPGADataLast(int element)
 {
-    return ((float)read16bit(0x30+element, 0x0A)) / 1000;
+  return ((float)read16bit(0x30 + element, 0x0A)) / 1000;
 }
 // get Temp Data from the latest 5 earthquakes
 float D7SClass::getTempDataLast(int element)
 {
-    return ((float)read16bit(0x30+element, 0x06)) / 10;
+  return ((float)read16bit(0x30 + element, 0x06)) / 10;
 }
 
 
@@ -119,18 +133,18 @@ float D7SClass::getTempDataLast(int element)
 // get SI Data from the  5 greatest earthquakes measured
 float D7SClass::getSIDataGreatest(int element)
 {
-    return ((float)read16bit(0x35+element, 0x08)) / 1000;
+  return ((float)read16bit(0x35 + element, 0x08)) / 1000;
 }
 // get PGA Data from the 5 greatest earthquakes measured
 float D7SClass::getPGADataGreatest(int element)
 {
-    return ((float)read16bit(0x35+element, 0x0A)) / 1000;
+  return ((float)read16bit(0x35 + element, 0x0A)) / 1000;
 }
 
 // get Temp Data from the latest 5 earthquakes
 float D7SClass::getTempDataGreatest(int element)
 {
-    return ((float)read16bit(0x35+element, 0x06)) / 10;
+  return ((float)read16bit(0x35 + element, 0x06)) / 10;
 }
 
 
@@ -143,7 +157,7 @@ float D7SClass::getInstantaneousSI()
 //get Instantaneous PGA (during an earthquake) [m/s^2]
 float D7SClass::getInstantaneousPGA()
 {
-  return ((float)read16bit(0x20, 0x02)) / 1000;
+  return ((float)read16bit(0x20, 0x02)) / 100;
 }
 
 //initialize the d7s (start the initial installation mode)

@@ -54,6 +54,8 @@ class D7SClass
 
     //return the currect state
     d7s_status getState();
+        int getMode();
+    d7s_axis_state getAxisState();
 
     float getSIDataLast(int element);
     float getPGADataLast(int element);

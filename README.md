@@ -1,7 +1,7 @@
 Arduino Drivers for the SwitchDoc Labs WeatherSense Solar Powered Earthquake Detector - The AfterShock 
 SwitchDoc Labs, March 2021<BR>
 
-Version 1 - Initial Release - March 2021<BR>
+Version 1 - Initial Release - May 2021<BR>
 
 Installation
 
