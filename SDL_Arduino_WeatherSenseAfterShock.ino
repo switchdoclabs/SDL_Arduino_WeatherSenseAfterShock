@@ -23,7 +23,7 @@
 
 #define LED 13
 // Software version
-#define SOFTWAREVERSION 2
+#define SOFTWAREVERSION 3
 
 // unique ID of this WeatherSenseAfterShock system - change if you have multiple WeatherSenseThunderBoard systems
 #define WEATHERSENESTHBID 1
@@ -36,9 +36,9 @@
 // Device ID is changed if you have more than one WeatherSense ThunderBoard in the area
 
 // Number of milliseconds between wake up  30 seconds.   - if you move this over 60000 ms, you will need to add the watchdog in the sleep loop - see SDL_Arduino_WeatherSenseAQI ResetWatchDog
-// Every 100 wakeups send packet (~60 minutes) keepalivemessage
+// Every 120 wakeups send packet (~60 minutes) keepalivemessage
 #define SLEEPCYCLE 30000
-#define WAKEUPS 100
+#define WAKEUPS 120
 
 
 #include "Crc16.h"
@@ -139,7 +139,7 @@ byte SoftwareVersion;
 
 // A = 1, AftereShock Present, 0 not present
 // B = 1, IN3221 (Solar) Present, 0 not present
-// C = 1, Low battery, Lighting Chip shut off (too many false alarms in low voltage mode)
+// C = 1, Low battery, Chip shut off (too many false alarms in low voltage mode)
 // D = 1, I'm alive message
 // E = 1, EQ evaluation started
 
@@ -389,15 +389,47 @@ void EarthquakeHandler() {
 
 
   }
-  /*Serial.print(F("IN2_PIN="));
-    Serial.println(digitalRead(INT2_PIN));
-    Serial.print(F("After Prev/Current="));
-    Serial.print(PreviousEQInProgress);
-    Serial.print(F(" / "));
+  Serial.print(F("IN2_PIN="));
+  Serial.println(digitalRead(INT2_PIN));
+  Serial.print(F("After Prev/Current="));
+  Serial.print(PreviousEQInProgress);
+  Serial.print(F(" / "));
 
-    Serial.println(EQInProgress);
-  */
+  Serial.println(EQInProgress);
+
 }
+
+String returnState(int state)
+{
+
+  switch (state)
+  {
+    case 0:
+      return "Normal Mode Standby";
+      break;
+    case 1:
+      return "Normal Mode";
+      break;
+    case 2:
+      return "Initial Installation Mode";
+      break;
+    case 3:
+      return "Offset Acquisition Mode";
+      break;
+    case 4:
+      return "Self-Diagnostic Mode";
+      break;
+
+
+    default:
+      return "Unknown";
+  }
+
+
+
+}
+
+
 
 void printD72RegisterStatus()
 {
@@ -405,17 +437,21 @@ void printD72RegisterStatus()
   Serial.println(F("########REGISTER STATE##########"));
   state = D7S.getState();
   Serial.print(F("state="));
-  Serial.println(state);
+  Serial.print(state);
+  Serial.print(F(" :"));
+  Serial.println(returnState(state));
   state = D7S.getMode();
   Serial.print(F("mode="));
-  Serial.println(state);
+  Serial.print(state);
+  Serial.print(F(" :"));
+  Serial.println(returnState(state));
   state = D7S.getAxisState();
   Serial.print(F("AxisState="));
   Serial.println(state);
 
 
 
-  Serial.println(F("########REGISTER STATE##########"));
+  Serial.println(F("############################"));
 }
 
 void printLast5()
@@ -671,8 +707,7 @@ void setup()
 
   unsigned long tempLong;
 
-  tempLong = EEPROM.get(0, tempLong);
-  Serial.println(tempLong, HEX);
+
 
   if (tempLong == 0xFFFFF)  // uninitialized
   {
@@ -685,7 +720,7 @@ void setup()
     // read the message value
   }
 
-  Serial.println(MessageCount, HEX);
+
 
 
   pinMode(LED, OUTPUT);
@@ -919,8 +954,12 @@ void loop()
 
           sendEQStartMessage();
         */
-        long loop;
-        loop = 0;
+
+        if (D7S.isEarthquakeOccuring())
+        {
+          Serial.println(F("Evaluating Earthquake - up to 2 minutes"));
+        }
+
         while (D7S.isEarthquakeOccuring())
         {
 
@@ -933,22 +972,24 @@ void loop()
             highInstantaneousSI = currentSI;
           }
           //getting Instantaneous SI
-          //Serial.print(F("\tInstantaneous SI: "));
-          //Serial.print(currentSI);
-          //Serial.println(F(" [m/s]"));
+#if defined(TXDEBUG)
+          Serial.print(F("\tInstantaneous SI: "));
+          Serial.print(currentSI);
+          Serial.println(F(" [m/s]"));
+#endif
 
           if (currentPGA > highInstantaneousPGA)
           {
             highInstantaneousPGA = currentPGA;
           }
           //getting Instantaneous PGA
-          // //Serial.print(F("\tInstantaneous PGA (Peak Ground Acceleration): "));
+          //Serial.print(F("\tInstantaneous PGA (Peak Ground Acceleration): "));
           //Serial.print(currentPGA);
           //Serial.println(" [m/s^2]\n");
-          if (loop % 100)
-          {
-            Serial.print(F("."));
-          }
+
+
+
+
 
           // Pat the WatchDog
 
